@@ -1,0 +1,266 @@
+***** Laravel 11 *****
+Add New Cron Job
+PHP command examples:
+General example:
+/usr/local/bin/php /home/edulog/public_html/path/to/cron/script
+
+
+
+jobs queues
+/usr/local/bin/php /home/edulog/document-sub-system.edu-log.com/artisan queue:work --stop-when-empty >> /dev/null 2>&1
+
+
+Route::get('test-send-mail', [AdminHomeController::class, 'testMail'])->name('testMail');
+
+****** in controoler *************
+
+Jab sirf email bhejna ho
+
+     public function testMail()
+    {
+        $mailData = [
+            'title' => 'Mail from ItSolutionStuff.com',
+            'body' => 'This is for testing email using smtp.'
+        ];
+           
+    // Mail::to('osamajanab9999@gmail.com')->queue(new DemoMail($mailData));
+
+     Mail::to('osamajanab9999@gmail.com')->later(now()->addMinutes(1), new DemoMail($mailData));
+    
+        dd("Email is sent successfully.");
+    }
+
+
+
+************************** 
+Jab email ke sath aur kaam karne hon (best practice for scalable apps):
+
+Route::get('test-send-mail', [AdminHomeController::class, 'testMail'])->name('testMail');
+
+app/Jobs/TestMailJob.php
+<?php
+
+namespace App\Jobs;
+
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\DemoMail;
+
+
+class TestMailJob implements ShouldQueue
+{
+    use Queueable;
+
+     protected $mailData;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct($mailData)
+    {
+        $this->mailData = $mailData;
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+      Mail::to('osamajanab9999@gmail.com')->send(new DemoMail($this->mailData));
+    }
+}
+
+********* in cotroller ****************
+public function testMail()
+    {
+        $mailData = [
+        'title' => 'Mail from ItSolutionStuff.com',
+        'body' => 'This is for testing email using smtp.'
+    ];
+
+    // Dispatch job abhi turant
+    // TestMailJob::dispatch($mailData);
+
+    // Dispatch job 1 minute delay ke sath
+    TestMailJob::dispatch($mailData)->delay(now()->addMinute());
+
+    dd("Email Job dispatched successfully!");
+    
+    }
+    
+
+********************************************************************************
+************** cron jobs ***************************************
+Ssheduler:
+/usr/local/bin/php /home/edulog/document-sub-system.edu-log.com/artisan schedule:run >> /dev/null 2>&1
+
+
+php artisan make:command TestMail
+app/Console/Commands/TestMail.php
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\DemoMail;
+
+*************** TestMail wala *************************
+class TestMail extends Command
+{
+    /** 
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'test:mail';
+
+    /** 
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Command description osama is working';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+         $mailData = [
+            'title' => 'Mail from ItSolutionStuff.com',
+            'body' => 'This is for testing email using smtp.'
+        ];
+
+        Mail::to('osamajanab9999@gmail.com')->send(new DemoMail($mailData));
+
+        $this->info('Email sent successfully.');
+    }
+}
+
+
+***************** StatusUpdate wala   *****************
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\StatusUpdateMail;
+
+
+class StatusUpdate extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'status:update';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Command description status update';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+         $mailData = [
+            'title' => 'Status Update title',
+            'body' => 'This is for testing email Status Update.'
+        ];
+
+        Mail::to('osamajanab9999@gmail.com')->send(new StatusUpdateMail($mailData));
+
+        $this->info('Email sent successfully.');
+    }
+}
+
+
+
+
+******************in routes/console.php **************
+
+<?php
+
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+
+Artisan::command('inspire', function () {
+    $this->comment(Inspiring::quote());
+})->purpose('Display an inspiring quote');
+
+
+Schedule::command('test:mail')->everyTwoMinutes();
+Schedule::command('status:update')->everyMinute(); 
+
+
+******************************************************************************
+
+php artisan make:mail DemoMail
+
+************* DemoMail ***************
+
+<?php
+
+namespace App\Mail;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Queue\SerializesModels;
+
+class DemoMail extends Mailable
+{
+    use Queueable, SerializesModels;
+
+    /**
+     * Create a new message instance.
+     */
+     public $mailData;
+    public function __construct($mailData)
+    {
+        $this->mailData=$mailData;
+    }
+
+    /**
+     * Get the message envelope.
+     */
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Demo Mail',
+        );
+    }
+
+    /**
+     * Get the message content definition.
+     */
+    public function content(): Content
+{
+    return new Content(
+        view: 'emails.demoMail',
+        with: ['mailData' => $this->mailData]
+    );
+}
+
+
+    /**
+     * Get the attachments for the message.
+     *
+     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     */
+    public function attachments(): array
+    {
+        return [];
+    }
+}
